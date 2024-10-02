@@ -16,23 +16,93 @@
 Данные, соответственно, для доллара должны браться
 из https://api.exchangerate-api.com/v4/latest/USD
 """
-import requests
+import re
+from http.client import HTTPException
 
-from fastapi import FastAPI, HTTPException
+import aiohttp
+from aiohttp import ClientSession
 
-app = FastAPI(title='Курсы валют')
+
+async def fetch_request(session: ClientSession, currency: str):
+    """ Функция делает запрос по API """
+    async with session.get(f"https://api.exchangerate-api.com/v4/latest/{currency}") as resp:
+        if resp.status != 200:
+            raise HTTPException({"status": resp.status, "error": resp.json()})
+        return await resp.json()
 
 
-@app.get("/{currency}")
-async def get(currency: str):
-    """ Отдает данные по указанной валюте """
-    response = requests.get(f"https://api.exchangerate-api.com/v4/latest/{currency}")
+async def app(scope: dict, receive, send):
+    """ Типа ASGI функция """
+    ___ = """
+    scope: <class 'dict'> # Словарь с инфой по запросу
+    {
+        'type': 'http', 
+        'asgi': {'version': '3.0', 'spec_version': '2.4'}, 
+        'http_version': '1.1', 
+        'server': ('127.0.0.1', 8000), 
+        'client': ('127.0.0.1', 39730), 
+        'scheme': 'http', 
+        'method': 'GET', 
+        'root_path': '', 
+        'path': '/favicon.ico', 
+        'raw_path': b'/favicon.ico', 
+        'query_string': b'', 
+        'headers': [
+            (b'host', b'localhost:8000'), 
+            (b'connection', b'keep-alive'), 
+            (b'sec-ch-ua', b'"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"'), 
+            (b'dnt', b'1'), 
+            (b'sec-ch-ua-mobile', b'?0'), 
+            (b'user-agent', b'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'), 
+            (b'sec-ch-ua-platform', b'"Linux"'), 
+            (b'accept', b'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'), 
+            (b'sec-fetch-site', b'same-origin'), 
+            (b'sec-fetch-mode', b'no-cors'), 
+            (b'sec-fetch-dest', b'image'), 
+            (b'referer', b'http://localhost:8000/USD'), 
+            (b'accept-encoding', b'gzip, deflate, br, zstd'), 
+            (b'accept-language', b'ru,ru-RU;q=0.9,en;q=0.8')
+        ], 
+        'state': {}
+    }
+    receive: <class 'method'> <bound method RequestResponseCycle.receive of <uvicorn.protocols.http.h11_impl.RequestResponseCycle object at 0x78b64cff1ed0>> # Кортеж с типами или функцией для приема данных
+    send: <class 'method'> <bound method RequestResponseCycle.send of <uvicorn.protocols.http.h11_impl.RequestResponseCycle object at 0x78b64cff1ed0>> # Кортеж с типами или функцией для отправки данных
+    """  # Это дает uvicorn с запроса в браузере.  # noqa
 
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.json())
-    return response.json()
+    if scope.get("type") != "http":
+        raise ValueError("Request type not supported")
+
+    if scope.get("method") not in ("GET",):
+        raise ValueError("Request method not supported")
+
+    headers = scope.get("headers")
+
+    async with aiohttp.ClientSession() as session:
+        decode_headers = dict()
+
+        for header in headers:
+            decode_headers[header[0].decode()] = header[1].decode()
+
+        param = decode_headers.get("referer")
+
+        if param:  # При запросе param = None
+            result = str(await fetch_request(session, param.split("/")[-1]))
+        else:
+            result = "No params"
+
+    await send({
+        "type": "http.response.start",
+        "status": 200,
+        "headers": [(b"Content-Type", "application/json".encode()),
+                    (b"Content-Length", str(len(result)).encode())],
+    })
+
+    await send({
+        "type": "http.response.body",
+        "body": str(result).encode(),
+    })
 
 
 if __name__ == '__main__':
-    import uvicorn  # http://127.0.0.1:8000/docs
-    uvicorn.run(app, host='127.0.0.1', port=8000)
+    import uvicorn  # http://localhost:8000/USD
+    uvicorn.run(app=app, host="0.0.0.0", port=8000)
