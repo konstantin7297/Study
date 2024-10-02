@@ -75,26 +75,19 @@ async def app(scope: dict, receive, send):
     if scope.get("method") not in ("GET",):
         raise ValueError("Request method not supported")
 
-    headers = scope.get("headers")
+    path = scope.get("path")
 
     async with aiohttp.ClientSession() as session:
-        decode_headers = dict()
-
-        for header in headers:
-            decode_headers[header[0].decode()] = header[1].decode()
-
-        param = decode_headers.get("referer")
-
-        if param:  # При запросе param = None
-            result = str(await fetch_request(session, param.split("/")[-1]))
+        if path == "/favicon.ico":
+            result = ""
         else:
-            result = "No params"
+            result = await fetch_request(session, path)
 
     await send({
         "type": "http.response.start",
         "status": 200,
         "headers": [(b"Content-Type", "application/json".encode()),
-                    (b"Content-Length", str(len(result)).encode())],
+                    (b"Content-Length", str(len(str(result).encode())).encode())],
     })
 
     await send({
