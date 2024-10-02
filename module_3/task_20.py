@@ -104,16 +104,16 @@ def variant_c(data: list):
     """ Вариант В: Создание отдельных процессов с использованием 'multiprocessing.Process' и очередей (multiprocessing.Queue) для передачи данных. """
     queue = mp.Queue()
 
-    for num in data:
-        queue.put(num)
-
-    processes = [mp.Process(target=process_number, kwargs={"que": queue}) for _ in range(mp.cpu_count())]
+    processes = [
+        mp.Process(target=process_number, kwargs={"que": queue})
+        for _ in range(mp.cpu_count())
+    ]
 
     for process in processes:
         process.start()
 
-    for _ in range(mp.cpu_count()):
-        queue.put(None)
+    for val in data + [None for _ in range(mp.cpu_count())]:
+        queue.put(val)
 
     for process in processes:
         process.join()
@@ -122,6 +122,6 @@ def variant_c(data: list):
 
 
 if __name__ == '__main__':
-    numbers = generate_data(1000000)
+    numbers = generate_data(10000)
     for variant in [variant_default, variant_a, variant_b, variant_c]:
         variant(data=numbers)
