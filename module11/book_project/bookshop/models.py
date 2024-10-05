@@ -21,5 +21,5 @@ class Book(models.Model):
             raise ValueError("Не получилось продать книгу, видимо нет в наличии.")
 
         book.count -= 1
-        book.save()
+        book.save(update_fields=['count'])
         return book
