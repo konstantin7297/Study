@@ -21,13 +21,19 @@ def single(max_processing_time: datetime.timedelta = datetime.timedelta(minutes=
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             max_run_time = int(max_processing_time.total_seconds())
+
+            if redis_client.exists(func.__name__) and redis_client.ttl(func.__name__) <= 0:
+                redis_client.delete(func.__name__)
+
             if redis_client.set(func.__name__, "locked", nx=True, ex=max_run_time):
                 try:
                     return func(*args, **kwargs)
                 finally:
                     redis_client.delete(func.__name__)
+
             else:
                 raise RuntimeError(f"Функция {func.__name__!r} уже запущена.")
+
         return wrapper
     return decorator
 
