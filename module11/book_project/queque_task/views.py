@@ -8,9 +8,13 @@ from queque_task.models import Task
 
 def worker_process(task: Task) -> Task:
     """ Рабочий процесс """
-    task.status = "completed"
-    task.save(update_fields=["status"])
-    return task
+    try:
+        task.status = "completed"
+    except Exception:
+        task.status = "pending"
+    finally:
+        task.save(update_fields=["status"])
+        return task
 
 
 @api_view(['GET'])  # Задача 6 из модуля 13.
@@ -18,10 +22,11 @@ def worker_process(task: Task) -> Task:
 def fetch_task(request: Request, worker_id: int, create_task: bool = True) -> Response:
     """ Функция для отдачи задачи на worker. """
     try:
-        if create_task:
+        if create_task:  # Заглушка на создание задачи.
             Task.objects.get_or_create(task_name="task1", status="pending")
 
-        task = Task.get_pending_task(worker_id)
-        return Response({"result": str(worker_process(task).status)})
+        if task := Task.get_pending(worker_id):  # Попытка получить задачу.
+            return Response({"result": str(worker_process(task).status)})
+
     except Task.DoesNotExist:
         return Response({"result": "Нет задач."})

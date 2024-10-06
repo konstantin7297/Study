@@ -1,3 +1,5 @@
+from typing import Union
+
 from django.db import models, transaction
 
 
@@ -19,10 +21,13 @@ class Task(models.Model):
 
     @staticmethod
     @transaction.atomic
-    def get_pending_task(worker_id: int) -> 'Task':
+    def get_pending(worker_id: int) -> Union['Task', None]:
         """ Отдает задачу в статусе pending, т.е. свободную. """
-        task = Task.objects.select_for_update().get(status="pending")
-        task.status = "processing"
-        task.worker_id = worker_id
-        task.save(update_fields=["status", "worker_id"])
-        return task
+        try:
+            task = Task.objects.select_for_update().get(status="pending")
+            task.status = "processing"
+            task.worker_id = worker_id
+            task.save(update_fields=["status", "worker_id"])
+            return task
+        except Task.DoesNotExist:
+            return None
